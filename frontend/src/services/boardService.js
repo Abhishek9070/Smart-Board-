@@ -5,7 +5,7 @@ export const getBoards = async () => {
   return data
 }
 
-export const createBoard = async (title = 'Untitled Board') => {
+export const createBoard = async (title = 'Class Flow') => {
   const { data } = await api.post('/boards', { title })
   return data
 }

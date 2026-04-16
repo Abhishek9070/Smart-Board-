@@ -5,7 +5,7 @@ import crypto from 'crypto'
 export const createBoard = async (req, res) => {
   try {
     const board = await Board.create({
-      title: req.body.title || 'Untitled Board',
+      title: req.body.title || 'Class Flow',
       owner: req.user._id
     })
 

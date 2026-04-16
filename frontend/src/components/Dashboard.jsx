@@ -33,7 +33,7 @@ export default function Dashboard() {
   const handleCreateBoard = async () => {
     try {
       setCreating(true)
-      const board = await createBoard('Untitled Board')
+      const board = await createBoard('Class Flow')
       navigate(`/board/${board._id}`)
     } catch (error) {
       toast.error('Failed to create board')
@@ -104,7 +104,7 @@ export default function Dashboard() {
 
       {/* Navbar */}
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-blue-600">SmartBoard</h1>
+        <h1 className="text-2xl font-bold text-blue-600">Class Flow</h1>
         <div className="flex items-center gap-4">
           <span className="text-gray-600 text-sm">Hey, {user?.name}!</span>
           <button

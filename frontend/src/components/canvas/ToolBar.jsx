@@ -308,7 +308,10 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
               className={`w-9 h-9 rounded-lg border flex items-center justify-center transition ml-auto ${isNightMode ? 'border-slate-600 hover:bg-slate-800' : 'border-gray-200 hover:bg-gray-50'}`}
               title="More colors and stroke"
             >
-              <div className="w-5 h-5 rounded-full border border-gray-300" style={{ backgroundColor: activeTool === 'eraser' ? '#ffffff' : activeDrawColor }} />
+              <div
+                className={`w-5 h-5 rounded-full border ${isNightMode && isDarkColor(activeDrawColor) ? 'border-slate-100' : 'border-gray-300'}`}
+                style={{ backgroundColor: activeTool === 'eraser' ? '#ffffff' : activeDrawColor }}
+              />
             </button>
           </div>
 
@@ -322,6 +325,7 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
                       color={color}
                       selected={activeDrawColor === color}
                       onClick={() => applyDrawColor(color)}
+                      isNightMode={isNightMode}
                     />
                   ))}
                 </div>
@@ -372,6 +376,7 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
                 color={color}
                 selected={graphicsColor === color}
                 onClick={() => setGraphicsColor(color)}
+                isNightMode={isNightMode}
               />
             ))}
           </div>
@@ -380,7 +385,7 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
         </div>
       )}
 
-      <div className={`flex items-center gap-0.5 rounded-2xl shadow-lg px-2 py-2 border max-w-[92vw] overflow-x-auto ${isNightMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-100'}`}>
+      <div className={`no-scrollbar flex items-center gap-0.5 rounded-2xl shadow-lg px-2 py-2 border max-w-[92vw] overflow-x-auto ${isNightMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-100'}`}>
         <input
           ref={photoInputRef}
           type="file"
@@ -490,14 +495,23 @@ function ToolModeIcon({ active, onClick, title, children, isNightMode = false })
 }
 
 function PencilColorBtn({ color, selected, onClick, isNightMode = false }) {
+  const darkStroke = isDarkColor(color)
   return (
     <button
       onClick={onClick}
       title="Quick pencil color"
       className={`group relative w-8 h-8 rounded-lg border flex items-center justify-center transition
-        ${selected ? 'bg-blue-100 border-blue-300' : isNightMode ? 'bg-slate-900 border-slate-600 hover:bg-slate-800' : 'bg-white border-gray-200 hover:bg-gray-50'}`}
+        ${selected ? 'bg-blue-100 border-blue-300' : isNightMode ? 'bg-slate-900 border-slate-600 hover:bg-slate-800' : 'bg-white border-gray-200 hover:bg-gray-50'}
+        ${isNightMode && darkStroke ? 'ring-1 ring-slate-500' : ''}`}
     >
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke={color} strokeWidth="2">
+      <svg
+        viewBox="0 0 24 24"
+        className="w-4 h-4"
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        style={isNightMode && darkStroke ? { filter: 'drop-shadow(0 0 1px rgba(248,250,252,0.95))' } : undefined}
+      >
         <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
       </svg>
       <HoverToolLabel label="Pencil color" />
@@ -545,16 +559,22 @@ function StarIcon() {
   return <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2"><path d="m12 4 2.4 4.8 5.3.8-3.8 3.7.9 5.2-4.8-2.5-4.8 2.5.9-5.2L4.3 9.6l5.3-.8z"/></svg>
 }
 
-function Swatch({ color, selected, onClick }) {
+function Swatch({ color, selected, onClick, isNightMode = false }) {
+  const darkColor = isDarkColor(color)
   return (
     <button
       onClick={onClick}
       className={`w-7 h-7 rounded-full transition-transform hover:scale-105
-        ${selected ? 'ring-2 ring-offset-1 ring-blue-500' : ''}`}
+        ${selected ? 'ring-2 ring-offset-1 ring-blue-500' : ''}
+        ${isNightMode && darkColor ? 'ring-1 ring-slate-400' : ''}`}
       style={{ backgroundColor: color }}
       title={color}
     />
   )
+}
+
+function isDarkColor(color) {
+  return color === '#000000' || color === '#111827'
 }
 
 function TBtn({ onClick, active, title, children, disabled = false, isNightMode = false }) {

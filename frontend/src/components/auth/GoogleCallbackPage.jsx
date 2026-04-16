@@ -43,7 +43,7 @@ export default function GoogleCallbackPage() {
       <Toaster />
       <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md text-center">
         <div className="w-10 h-10 mx-auto mb-4 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        <h1 className="text-2xl font-bold text-blue-600 mb-2">SmartBoard</h1>
+        <h1 className="text-2xl font-bold text-blue-600 mb-2">Class Flow</h1>
         <p className="text-gray-600">
           {loading ? 'Finishing Google login...' : 'Redirecting...'}
         </p>

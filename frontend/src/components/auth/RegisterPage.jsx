@@ -31,7 +31,7 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Toaster />
       <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center text-blue-600 mb-2">SmartBoard</h1>
+        <h1 className="text-3xl font-bold text-center text-blue-600 mb-2">Class Flow</h1>
         <p className="text-center text-gray-500 mb-6">Create your account</p>
 
         <form onSubmit={handleRegister} className="space-y-4">

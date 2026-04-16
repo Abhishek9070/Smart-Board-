@@ -26,7 +26,7 @@ export default function WhiteboardPage() {
   const [canvasData, setCanvasData] = useState('')
   const [pages, setPages] = useState([])
   const [currentPageNumber, setCurrentPageNumber] = useState(1)
-  const [boardTitle, setBoardTitle] = useState('Untitled Board')
+  const [boardTitle, setBoardTitle] = useState('Class Flow')
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
   const [loading, setLoading] = useState(true)
@@ -73,8 +73,8 @@ export default function WhiteboardPage() {
     const fetchBoard = async () => {
       try {
         const board = await getBoard(id)
-        setBoardTitle(board.title || 'Untitled Board')
-        setTitleDraft(board.title || 'Untitled Board')
+        setBoardTitle(board.title || 'Class Flow')
+        setTitleDraft(board.title || 'Class Flow')
       } catch (error) {
         console.error('Failed to load board details:', error)
       }
@@ -308,15 +308,34 @@ export default function WhiteboardPage() {
 
   const handleShareBoard = async () => {
     try {
+      setPageBusy(true)
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+
+      const liveCanvas = board.fabricRef.current
+      if (liveCanvas) {
+        const snapshot = JSON.stringify(liveCanvas.toObject())
+        pendingCanvasDataRef.current = snapshot
+        pendingPageNumberRef.current = currentPageNumber
+        setCanvasData(snapshot)
+      }
+
+      await flushSave()
+
       const result = await createShareLink(id)
-      const link = `${window.location.origin}/shared/${result.shareToken}`
+      const params = new URLSearchParams({ page: String(currentPageNumber) })
+      const link = `${window.location.origin}/shared/${result.shareToken}?${params.toString()}`
       await navigator.clipboard.writeText(link)
-      setShareStatus('Link copied')
+      setShareStatus('Page link copied')
       setTimeout(() => setShareStatus(''), 1800)
     } catch (error) {
       console.error('Failed to share board:', error)
       setShareStatus('Share failed')
       setTimeout(() => setShareStatus(''), 1800)
+    } finally {
+      setPageBusy(false)
     }
   }
 
@@ -336,12 +355,12 @@ export default function WhiteboardPage() {
 
   return (
     <div className={`h-screen w-screen overflow-hidden flex flex-col ${isNightMode ? 'bg-slate-900' : 'bg-gray-100'}`}>
-      <header className={`h-16 shrink-0 border-b ${isNightMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200'}`}>
-        <div className="h-full w-full max-w-[1680px] mx-auto px-4 md:px-6 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
+      <header className={`h-14 shrink-0 border-b ${isNightMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200'}`}>
+        <div className="h-full w-full px-3 md:px-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <div>
-              <h1 className="text-lg font-bold text-blue-600 leading-tight">SmartBoard</h1>
-              <div className="flex items-center gap-2 mt-0.5">
+              <h1 className="text-base font-bold text-blue-600 leading-tight">Class Flow</h1>
+              <div className="flex items-center gap-2">
               {editingTitle ? (
                 <>
                   <input
@@ -382,7 +401,7 @@ export default function WhiteboardPage() {
               <button
                 onClick={() => setShowPageMenu((prev) => !prev)}
                 disabled={pageBusy}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition shrink-0 ${currentPageNumber ? 'border-blue-300 text-blue-700 bg-blue-100' : ''} ${isNightMode ? 'border-slate-700 bg-slate-900 hover:bg-slate-800' : 'border-gray-200 bg-white hover:bg-gray-50'} ${pageBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`px-3 py-1 text-xs rounded-lg border transition shrink-0 ${currentPageNumber ? 'border-blue-300 text-blue-700 bg-blue-100' : ''} ${isNightMode ? 'border-slate-700 bg-slate-900 hover:bg-slate-800' : 'border-gray-200 bg-white hover:bg-gray-50'} ${pageBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
                 title="Pages"
               >
                 Page {currentPageNumber} {showPageMenu ? '▲' : '▼'}
@@ -435,17 +454,31 @@ export default function WhiteboardPage() {
           <div className="flex items-center gap-2 relative">
             <button
               onClick={() => setIsNightMode((prev) => !prev)}
-              className={`w-9 h-9 rounded-lg border transition flex items-center justify-center ${isNightMode ? 'border-slate-700 bg-slate-900 text-yellow-300 hover:bg-slate-800' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
+              className={`w-8 h-8 rounded-lg border transition flex items-center justify-center ${isNightMode ? 'border-slate-700 bg-slate-900 text-yellow-300 hover:bg-slate-800' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
               title={isNightMode ? 'Switch to day mode' : 'Switch to night mode'}
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
-                <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
-              </svg>
+              {isNightMode ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <circle cx="12" cy="12" r="4"/>
+                  <path d="M12 2v2"/>
+                  <path d="M12 20v2"/>
+                  <path d="m4.93 4.93 1.41 1.41"/>
+                  <path d="m17.66 17.66 1.41 1.41"/>
+                  <path d="M2 12h2"/>
+                  <path d="M20 12h2"/>
+                  <path d="m6.34 17.66-1.41 1.41"/>
+                  <path d="m19.07 4.93-1.41 1.41"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+                  <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>
+                </svg>
+              )}
             </button>
 
             <button
               onClick={() => setShowSettings((prev) => !prev)}
-              className={`w-9 h-9 rounded-lg border transition flex items-center justify-center ${isNightMode ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
+              className={`w-8 h-8 rounded-lg border transition flex items-center justify-center ${isNightMode ? 'border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'}`}
               title="Board settings"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -495,7 +528,8 @@ export default function WhiteboardPage() {
 
                 <button
                   onClick={handleShareBoard}
-                  className={`mt-2 w-full text-left px-2.5 py-2 rounded-lg text-sm transition ${isNightMode ? 'text-slate-200 hover:bg-slate-800' : 'text-gray-700 hover:bg-gray-100'}`}
+                  disabled={pageBusy}
+                  className={`mt-2 w-full text-left px-2.5 py-2 rounded-lg text-sm transition ${isNightMode ? 'text-slate-200 hover:bg-slate-800' : 'text-gray-700 hover:bg-gray-100'} ${pageBusy ? 'opacity-60 cursor-not-allowed' : ''}`}
                 >
                   Share View Link
                 </button>
@@ -506,7 +540,7 @@ export default function WhiteboardPage() {
 
             <button
               onClick={() => navigate('/dashboard')}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition ${isNightMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-gray-700 bg-gray-100 hover:bg-gray-200'}`}
+              className={`px-3 py-1 text-sm font-medium rounded-lg transition ${isNightMode ? 'text-slate-200 bg-slate-800 hover:bg-slate-700' : 'text-gray-700 bg-gray-100 hover:bg-gray-200'}`}
             >
               Back to Dashboard
             </button>
@@ -514,8 +548,8 @@ export default function WhiteboardPage() {
         </div>
       </header>
 
-      <div className="relative flex-1 p-2 md:p-4 overscroll-none">
-        <div className={`relative h-full w-full max-w-[1680px] mx-auto rounded-2xl border shadow-sm overflow-hidden touch-none ${isNightMode ? 'bg-slate-950 border-slate-700' : 'bg-white border-gray-200'}`} data-canvas-host>
+      <div className="relative flex-1 p-0 overscroll-none">
+        <div className={`relative h-full w-full overflow-hidden touch-none ${isNightMode ? 'bg-slate-950' : 'bg-white'}`} data-canvas-host>
           {loading && (
             <div className={`absolute inset-0 z-10 flex items-center justify-center text-sm ${isNightMode ? 'bg-slate-950/90 text-slate-400' : 'bg-white/90 text-gray-500'}`}>
               Loading board...

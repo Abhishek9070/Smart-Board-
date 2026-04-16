@@ -408,39 +408,6 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
     }
   }, [activeTool])
 
-  // Temporary highlighter — 5 sec baad gayab
-  useEffect(() => {
-    const canvas = fabricRef.current
-    if (!canvas) return
-    if (activeTool !== 'highlighter') return
-
-    const handlePathCreated = (e) => {
-      const path = e.path
-      if (!path) return
-
-      path._isTemporary = true
-
-      // 5 seconds baad fade out karke remove karo
-      let opacity = 1
-      const fadeInterval = setInterval(() => {
-        opacity -= 0.05
-        path.set('opacity', Math.max(0, opacity))
-        canvas.renderAll()
-
-        if (opacity <= 0) {
-          clearInterval(fadeInterval)
-          canvas.remove(path)
-          canvas.renderAll()
-        }
-      }, 250) // har 250ms pe fade
-
-      // Total time ~ 5 seconds (250ms * 20 steps)
-    }
-
-    canvas.on('path:created', handlePathCreated)
-    return () => canvas.off('path:created', handlePathCreated)
-  }, [activeTool])
-
   // Graphics tool
   useEffect(() => {
     const canvas = fabricRef.current

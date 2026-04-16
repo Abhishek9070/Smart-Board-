@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 const boardSchema = new mongoose.Schema({
   title: {
     type: String,
-    default: 'Untitled Board'
+    default: 'Class Flow'
   },
   owner: {
     type: mongoose.Schema.Types.ObjectId,
