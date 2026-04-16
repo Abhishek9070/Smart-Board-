@@ -14,6 +14,8 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
   const isInitialized = useRef(false)
   const isSavingHistory = useRef(false)
   const isRestoringCanvas = useRef(false)
+  const isErasingRef = useRef(false)
+  const erasedDuringStrokeRef = useRef(false)
   const isPanningRef = useRef(false)
   const lastPanPointRef = useRef({ x: 0, y: 0 })
 
@@ -27,6 +29,41 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
     highlighterWidth,
     eraserWidth,
   } = useCanvasStore()
+
+  const applyInteractionMode = useCallback((tool) => {
+    const canvas = fabricRef.current
+    if (!canvas) return
+
+    if (tool === 'select') {
+      canvas.selection = true
+      canvas.skipTargetFind = false
+      canvas.defaultCursor = 'default'
+      canvas.hoverCursor = 'move'
+      canvas.forEachObject((obj) => {
+        obj.selectable = true
+        obj.evented = true
+      })
+      canvas.requestRenderAll()
+      return
+    }
+
+    if (tool === 'hand') {
+      canvas.selection = false
+      canvas.skipTargetFind = true
+      canvas.defaultCursor = 'grab'
+      canvas.hoverCursor = 'grab'
+      canvas.discardActiveObject()
+      canvas.requestRenderAll()
+      return
+    }
+
+    canvas.selection = false
+    canvas.skipTargetFind = true
+    canvas.defaultCursor = createCrosshairCursor()
+    canvas.hoverCursor = createCrosshairCursor()
+    canvas.discardActiveObject()
+    canvas.requestRenderAll()
+  }, [])
 
   const fitCanvasToContainer = useCallback(() => {
     const canvas = fabricRef.current
@@ -86,6 +123,10 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
 
     // History save — sirf object:added/modified/removed pe
     canvas.on('object:added', (e) => {
+      if (e.target && e.target.erasable !== false) {
+        e.target.set('erasable', true)
+      }
+
       // Temporary highlighter objects ko history mein mat daalo
       if (e.target?._isTemporary) return
       saveHistory()
@@ -168,6 +209,7 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
       canvas.clear()
       canvas.backgroundColor = '#ffffff'
       fitCanvasToContainer()
+      applyInteractionMode(activeTool)
       canvas.renderAll()
       const emptyJson = JSON.stringify(canvas.toObject())
       historyRef.current = [emptyJson]
@@ -183,7 +225,13 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
 
         isRestoringCanvas.current = true
         await canvas.loadFromJSON(parsed)
+        canvas.getObjects().forEach((obj) => {
+          if (obj.erasable !== false) {
+            obj.set('erasable', true)
+          }
+        })
         fitCanvasToContainer()
+        applyInteractionMode(activeTool)
         canvas.renderAll()
 
         const restoredJson = JSON.stringify(canvas.toObject())
@@ -197,7 +245,7 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
     }
 
     restoreCanvas()
-  }, [canvasData, fitCanvasToContainer])
+  }, [activeTool, applyInteractionMode, canvasData, fitCanvasToContainer])
 
   // Tool update
   useEffect(() => {
@@ -221,46 +269,100 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
       canvas.freeDrawingBrush = brush
       canvas.freeDrawingCursor = createCrosshairCursor()
     } else if (activeTool === 'eraser') {
-      canvas.isDrawingMode = true
-      const brush = new fabric.PencilBrush(canvas)
-      brush.color = '#ffffff'
-      brush.width = eraserWidth
-      canvas.freeDrawingBrush = brush
-      canvas.freeDrawingCursor = createCircleCursor(eraserWidth)
+      // Erasing is handled in a dedicated effect so background pattern is never painted over.
+      canvas.isDrawingMode = false
+      canvas.freeDrawingBrush = null
     } else {
       canvas.isDrawingMode = false
     }
 
-    // Select tool
-    if (activeTool === 'select') {
-      canvas.selection = true
-      canvas.defaultCursor = 'default'
-      canvas.forEachObject(obj => {
-        obj.selectable = true
-        obj.evented = true
-      })
-    } else if (activeTool === 'hand') {
-      canvas.selection = false
-      canvas.defaultCursor = 'grab'
-      canvas.hoverCursor = 'grab'
-      canvas.forEachObject(obj => {
-        obj.selectable = false
-        obj.evented = false
-      })
-      canvas.discardActiveObject()
-      canvas.renderAll()
-    } else {
-      canvas.selection = false
-      canvas.defaultCursor = createCrosshairCursor()
-      canvas.hoverCursor = createCrosshairCursor()
-      canvas.discardActiveObject()
-      canvas.forEachObject(obj => {
-        obj.selectable = false
-        obj.evented = false
-      })
-      canvas.renderAll()
+    applyInteractionMode(activeTool)
+
+    if (activeTool === 'eraser') {
+      const cursor = createCircleCursor(eraserWidth)
+      canvas.defaultCursor = cursor
+      canvas.hoverCursor = cursor
+      canvas.freeDrawingCursor = cursor
     }
-  }, [activeTool, eraserWidth, highlighterColor, highlighterWidth, pencilColor, pencilWidth])
+  }, [activeTool, applyInteractionMode, eraserWidth, highlighterColor, highlighterWidth, pencilColor, pencilWidth])
+
+  useEffect(() => {
+    const canvas = fabricRef.current
+    if (!canvas || activeTool !== 'eraser') return
+
+    const eraseAtPointer = (pointer) => {
+      if (!pointer) return false
+
+      const radius = Math.max(6, eraserWidth / 2)
+      const point = new fabric.Point(pointer.x, pointer.y)
+      const targets = []
+
+      canvas.getObjects().forEach((obj) => {
+        if (!obj || obj.erasable === false) return
+
+        const bounds = obj.getBoundingRect()
+        const withinExpandedBounds = (
+          point.x >= bounds.left - radius &&
+          point.x <= bounds.left + bounds.width + radius &&
+          point.y >= bounds.top - radius &&
+          point.y <= bounds.top + bounds.height + radius
+        )
+
+        if (!withinExpandedBounds) return
+        targets.push(obj)
+      })
+
+      if (!targets.length) return false
+
+      targets.forEach((obj) => canvas.remove(obj))
+      canvas.discardActiveObject()
+      canvas.requestRenderAll()
+      return true
+    }
+
+    const handleMouseDown = (opt) => {
+      if (!opt?.e) return
+      isErasingRef.current = true
+      erasedDuringStrokeRef.current = false
+
+      const pointer = canvas.getScenePoint(opt.e)
+      if (eraseAtPointer(pointer)) {
+        erasedDuringStrokeRef.current = true
+      }
+    }
+
+    const handleMouseMove = (opt) => {
+      if (!isErasingRef.current || !opt?.e) return
+      const pointer = canvas.getScenePoint(opt.e)
+      if (eraseAtPointer(pointer)) {
+        erasedDuringStrokeRef.current = true
+      }
+    }
+
+    const stopErasing = () => {
+      if (!isErasingRef.current) return
+      isErasingRef.current = false
+
+      if (erasedDuringStrokeRef.current) {
+        erasedDuringStrokeRef.current = false
+        saveHistory()
+      }
+    }
+
+    canvas.on('mouse:down', handleMouseDown)
+    canvas.on('mouse:move', handleMouseMove)
+    canvas.on('mouse:up', stopErasing)
+    canvas.on('mouse:out', stopErasing)
+
+    return () => {
+      canvas.off('mouse:down', handleMouseDown)
+      canvas.off('mouse:move', handleMouseMove)
+      canvas.off('mouse:up', stopErasing)
+      canvas.off('mouse:out', stopErasing)
+      isErasingRef.current = false
+      erasedDuringStrokeRef.current = false
+    }
+  }, [activeTool, eraserWidth, saveHistory])
 
   useEffect(() => {
     const canvas = fabricRef.current
@@ -370,38 +472,45 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
   }, [activeTool, graphicsColor, graphicsShape])
 
   // Undo
-  const handleUndo = useCallback(() => {
+  const restoreHistoryState = useCallback(async (json) => {
     const canvas = fabricRef.current
-    if (!canvas) return
+    if (!canvas || !json) return
+
+    try {
+      isSavingHistory.current = true
+      isRestoringCanvas.current = true
+      await canvas.loadFromJSON(JSON.parse(json))
+      applyInteractionMode(activeTool)
+      canvas.renderAll()
+      onSave?.(JSON.stringify(canvas.toObject()))
+    } catch (error) {
+      console.error('Failed to restore history state:', error)
+    } finally {
+      requestAnimationFrame(() => {
+        isRestoringCanvas.current = false
+        isSavingHistory.current = false
+      })
+    }
+  }, [activeTool, applyInteractionMode, onSave])
+
+  const handleUndo = useCallback(() => {
+    if (!fabricRef.current) return
     if (historyIndexRef.current <= 0) return
 
     historyIndexRef.current -= 1
     const json = historyRef.current[historyIndexRef.current]
-
-    isSavingHistory.current = true
-    canvas.loadFromJSON(JSON.parse(json)).then(() => {
-      canvas.renderAll()
-      isSavingHistory.current = false
-      onSave?.(JSON.stringify(canvas.toObject()))
-    })
-  }, [onSave])
+    void restoreHistoryState(json)
+  }, [restoreHistoryState])
 
   // Redo
   const handleRedo = useCallback(() => {
-    const canvas = fabricRef.current
-    if (!canvas) return
+    if (!fabricRef.current) return
     if (historyIndexRef.current >= historyRef.current.length - 1) return
 
     historyIndexRef.current += 1
     const json = historyRef.current[historyIndexRef.current]
-
-    isSavingHistory.current = true
-    canvas.loadFromJSON(JSON.parse(json)).then(() => {
-      canvas.renderAll()
-      isSavingHistory.current = false
-      onSave?.(JSON.stringify(canvas.toObject()))
-    })
-  }, [onSave])
+    void restoreHistoryState(json)
+  }, [restoreHistoryState])
 
   const handleClear = useCallback(() => {
     const canvas = fabricRef.current
@@ -466,6 +575,58 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
     canvas.requestRenderAll()
     saveHistory()
   }, [saveHistory])
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const target = event.target
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable
+      ) {
+        return
+      }
+
+      const canvas = fabricRef.current
+      const withModifier = event.ctrlKey || event.metaKey
+      const key = event.key.toLowerCase()
+
+      if (withModifier && key === 'z' && !event.shiftKey) {
+        event.preventDefault()
+        handleUndo()
+        return
+      }
+
+      if (withModifier && (key === 'y' || (key === 'z' && event.shiftKey))) {
+        event.preventDefault()
+        handleRedo()
+        return
+      }
+
+      if (withModifier && key === 'c') {
+        if (!canvas?.getActiveObject()) return
+        event.preventDefault()
+        handleCopy()
+        return
+      }
+
+      if (withModifier && key === 'v') {
+        if (!canvas?._clipboard) return
+        event.preventDefault()
+        handlePaste()
+        return
+      }
+
+      if (key === 'delete' || key === 'backspace') {
+        if (!canvas?.getActiveObject()) return
+        event.preventDefault()
+        handleDelete()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleCopy, handleDelete, handlePaste, handleRedo, handleUndo])
 
   const addImageFromUrl = useCallback(async (url) => {
     const canvas = fabricRef.current

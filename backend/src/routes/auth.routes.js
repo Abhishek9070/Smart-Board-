@@ -14,7 +14,7 @@ router.get('/me', protect, getMe)
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }))
 
 router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
+  passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL}/login` }),
   (req, res) => {
     const token = generateToken(req.user._id)
     res.cookie('token', token, {

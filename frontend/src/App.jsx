@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './components/auth/LoginPage.jsx'
 import RegisterPage from './components/auth/RegisterPage.jsx'
+import GoogleCallbackPage from './components/auth/GoogleCallbackPage.jsx'
 import ProtectedRoute from './components/auth/ProtectedRoute.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import WhiteboardPage from './components/canvas/WhiteboardPage.jsx'
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/" element={token ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
         <Route path="/login" element={token ? <Navigate to="/dashboard" /> : <LoginPage />} />
         <Route path="/register" element={token ? <Navigate to="/dashboard" /> : <RegisterPage />} />
+        <Route path="/google-callback" element={token ? <Navigate to="/dashboard" replace /> : <GoogleCallbackPage />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
@@ -27,6 +29,7 @@ export default function App() {
           </ProtectedRoute>
         } />
         <Route path="/shared/:token" element={<SharedBoardPage />} />
+        <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
       </Routes>
     </BrowserRouter>
   )

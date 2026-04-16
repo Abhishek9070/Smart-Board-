@@ -20,10 +20,17 @@ const boardSchema = new mongoose.Schema({
   },
   shareToken: {
     type: String,
-    unique: true,
-    sparse: true,
     default: null
   }
 }, { timestamps: true })
+
+boardSchema.index(
+  { shareToken: 1 },
+  {
+    name: 'shareToken_1',
+    unique: true,
+    partialFilterExpression: { shareToken: { $type: 'string' } }
+  }
+)
 
 export default mongoose.model('Board', boardSchema)

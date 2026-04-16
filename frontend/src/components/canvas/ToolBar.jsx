@@ -39,6 +39,7 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
   } = useCanvasStore()
 
   const [hasSelection, setHasSelection] = useState(false)
+  const [selectionMenuPosition, setSelectionMenuPosition] = useState({ x: 0, y: 0 })
   const [showDrawPanel, setShowDrawPanel] = useState(true)
   const [showStylePanel, setShowStylePanel] = useState(false)
   const photoInputRef = useRef(null)
@@ -48,6 +49,7 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
 
   useEffect(() => {
     let frameId = null
+    let selectionFrameId = null
     let cleanup = null
 
     const bindSelectionEvents = () => {
@@ -58,24 +60,78 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
       }
 
       const syncSelectionState = () => {
-        setHasSelection(Boolean(canvas.getActiveObject()))
+        const activeObject = canvas.getActiveObject()
+        if (!activeObject) {
+          setHasSelection(false)
+          return
+        }
+
+        const canvasElement =
+          canvas.upperCanvasEl ||
+          canvas.lowerCanvasEl ||
+          canvas.wrapperEl ||
+          canvas.getElement?.() ||
+          canvas.contextContainer?.canvas
+        if (!canvasElement) {
+          setHasSelection(true)
+          setSelectionMenuPosition({
+            x: window.innerWidth - 18,
+            y: 120,
+          })
+          return
+        }
+
+        const bounds = activeObject.getBoundingRect()
+        const canvasRect = canvasElement.getBoundingClientRect()
+        const rawX = canvasRect.left + bounds.left + bounds.width + 12
+        const rawY = canvasRect.top + bounds.top
+
+        setHasSelection(true)
+        setSelectionMenuPosition({
+          x: Math.min(window.innerWidth - 12, Math.max(12, rawX)),
+          y: Math.min(window.innerHeight - 12, Math.max(72, rawY)),
+        })
       }
 
-      const onSelect = () => setHasSelection(true)
-      const onDeselect = () => setHasSelection(false)
+      const queueSelectionSync = () => {
+        if (selectionFrameId) return
+        selectionFrameId = requestAnimationFrame(() => {
+          selectionFrameId = null
+          syncSelectionState()
+        })
+      }
 
-      canvas.on('selection:created', onSelect)
-      canvas.on('selection:updated', onSelect)
-      canvas.on('selection:cleared', onDeselect)
-      canvas.on('object:modified', syncSelectionState)
+      canvas.on('selection:created', queueSelectionSync)
+      canvas.on('selection:updated', queueSelectionSync)
+      canvas.on('selection:cleared', queueSelectionSync)
+      canvas.on('object:modified', queueSelectionSync)
+      canvas.on('object:moving', queueSelectionSync)
+      canvas.on('object:scaling', queueSelectionSync)
+      canvas.on('object:rotating', queueSelectionSync)
+      canvas.on('mouse:up', queueSelectionSync)
+
+      window.addEventListener('resize', queueSelectionSync)
+      window.addEventListener('scroll', queueSelectionSync, true)
 
       syncSelectionState()
 
       cleanup = () => {
-        canvas.off('selection:created', onSelect)
-        canvas.off('selection:updated', onSelect)
-        canvas.off('selection:cleared', onDeselect)
-        canvas.off('object:modified', syncSelectionState)
+        canvas.off('selection:created', queueSelectionSync)
+        canvas.off('selection:updated', queueSelectionSync)
+        canvas.off('selection:cleared', queueSelectionSync)
+        canvas.off('object:modified', queueSelectionSync)
+        canvas.off('object:moving', queueSelectionSync)
+        canvas.off('object:scaling', queueSelectionSync)
+        canvas.off('object:rotating', queueSelectionSync)
+        canvas.off('mouse:up', queueSelectionSync)
+
+        window.removeEventListener('resize', queueSelectionSync)
+        window.removeEventListener('scroll', queueSelectionSync, true)
+
+        if (selectionFrameId) {
+          cancelAnimationFrame(selectionFrameId)
+          selectionFrameId = null
+        }
       }
     }
 
@@ -146,9 +202,12 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 px-3">
+    <>
       {hasSelection && (
-        <div className={`fixed top-16 right-4 md:right-6 z-[60] flex items-center gap-1 rounded-2xl shadow-lg px-3 py-2 border ${isNightMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-100'}`}>
+        <div
+          style={{ left: `${selectionMenuPosition.x}px`, top: `${selectionMenuPosition.y}px` }}
+          className={`fixed z-[70] flex flex-col items-stretch gap-1 rounded-xl shadow-xl p-1.5 border min-w-[122px] ${isNightMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}
+        >
           <ActionBtn onClick={onCopy} title="Copy">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -163,7 +222,6 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
             </svg>
             <span>Paste</span>
           </ActionBtn>
-          <div className="w-px h-5 bg-gray-200 mx-1" />
           <ActionBtn onClick={onDelete} title="Delete" danger>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
               <path d="M3 6h18"/>
@@ -174,6 +232,9 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
           </ActionBtn>
         </div>
       )}
+
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+      <div className="relative flex flex-col items-center gap-2 px-3">
 
       {showDrawPanel && isDrawTool && (
         <div className={`w-[min(92vw,360px)] rounded-2xl shadow-lg px-3 py-3 border flex flex-col gap-2 relative ${isNightMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-100'}`}>
@@ -380,22 +441,6 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
           </svg>
         </TBtn>
 
-        <Sep />
-
-        <TBtn onClick={onCopy} title="Copy selected" disabled={!hasSelection} isNightMode={isNightMode}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-            <rect x="9" y="9" width="13" height="13" rx="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-        </TBtn>
-
-        <TBtn onClick={onPaste} title="Paste" isNightMode={isNightMode}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
-            <rect x="8" y="2" width="8" height="4" rx="1"/>
-          </svg>
-        </TBtn>
-
         <TBtn onClick={() => photoInputRef.current?.click()} title="Add photo" isNightMode={isNightMode}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
             <rect x="3" y="5" width="18" height="14" rx="2"/>
@@ -416,14 +461,6 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
 
         <Sep />
 
-        <TBtn onClick={onDelete} title="Delete selected" disabled={!hasSelection} isNightMode={isNightMode}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-red-400">
-            <path d="M3 6h18"/>
-            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
-          </svg>
-        </TBtn>
-
         <TBtn onClick={onExport} title="Save as PNG" isNightMode={isNightMode}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5 text-green-500">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -432,7 +469,9 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
           </svg>
         </TBtn>
       </div>
+      </div>
     </div>
+    </>
   )
 }
 
@@ -547,8 +586,8 @@ function ActionBtn({ onClick, title, danger, children }) {
     <button
       onClick={onClick}
       title={title}
-      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition
-        ${danger ? 'text-red-500 hover:bg-red-50' : 'text-gray-600 hover:bg-gray-100'}`}
+      className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition whitespace-nowrap
+        ${danger ? 'text-red-500 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-100'}`}
     >
       {children}
     </button>
