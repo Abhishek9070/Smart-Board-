@@ -81,10 +81,28 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
           return
         }
 
-        const bounds = activeObject.getBoundingRect()
         const canvasRect = canvasElement.getBoundingClientRect()
-        const rawX = canvasRect.left + bounds.left + bounds.width + 12
-        const rawY = canvasRect.top + bounds.top
+        let rawX = window.innerWidth - 18
+        let rawY = 120
+
+        const corners = typeof activeObject.getCoords === 'function' ? activeObject.getCoords() : null
+        if (Array.isArray(corners) && corners.length > 0) {
+          const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+          const projected = corners.map((point) => ({
+            x: point.x * vpt[0] + point.y * vpt[2] + vpt[4],
+            y: point.x * vpt[1] + point.y * vpt[3] + vpt[5],
+          }))
+
+          const rightMost = Math.max(...projected.map((point) => point.x))
+          const topMost = Math.min(...projected.map((point) => point.y))
+
+          rawX = canvasRect.left + rightMost + 12
+          rawY = canvasRect.top + topMost
+        } else {
+          const bounds = activeObject.getBoundingRect()
+          rawX = canvasRect.left + bounds.left + bounds.width + 12
+          rawY = canvasRect.top + bounds.top
+        }
 
         setHasSelection(true)
         setSelectionMenuPosition({
@@ -203,7 +221,7 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
 
   return (
     <>
-      {hasSelection && (
+      {activeTool === 'select' && hasSelection && (
         <div
           style={{ left: `${selectionMenuPosition.x}px`, top: `${selectionMenuPosition.y}px` }}
           className={`fixed z-[70] flex flex-col items-stretch gap-1 rounded-xl shadow-xl p-1.5 border min-w-[122px] ${isNightMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'}`}
@@ -287,20 +305,6 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
                   />
                 ))}
               </div>
-            )}
-
-            {activeTool === 'highlighter' && (
-              <button
-                onClick={() => setHighlighterColor('#000000')}
-                className={`w-9 h-9 rounded-lg border flex items-center justify-center transition ml-1
-                  ${highlighterColor === '#000000' ? 'bg-blue-100 border-blue-300' : isNightMode ? 'border-slate-600 hover:bg-slate-800' : 'border-gray-200 hover:bg-gray-50'}`}
-                title="Highlighter color"
-              >
-                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="#111827" strokeWidth="2">
-                  <path d="m9 11-6 6v3h9l3-3"/>
-                  <path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>
-                </svg>
-              </button>
             )}
 
             <button
@@ -422,6 +426,34 @@ export default function ToolBar({ onUndo, onRedo, onClear, onExport, onCopy, onP
             <path d="M5 3l14 9-7 1-4 7L5 3z"/>
           </svg>
         </TBtn>
+
+        {activeTool === 'select' && (
+          <>
+            <Sep />
+
+            <TBtn onClick={onCopy} title="Copy" disabled={!hasSelection} isNightMode={isNightMode}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </TBtn>
+
+            <TBtn onClick={onPaste} title="Paste" isNightMode={isNightMode}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <rect x="8" y="2" width="8" height="4" rx="1"/>
+              </svg>
+            </TBtn>
+
+            <TBtn onClick={onDelete} title="Delete" disabled={!hasSelection} isNightMode={isNightMode}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M3 6h18"/>
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+              </svg>
+            </TBtn>
+          </>
+        )}
 
         <TBtn onClick={() => setActiveTool('hand')} active={activeTool === 'hand'} title="Hand (Pan)" isNightMode={isNightMode}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">

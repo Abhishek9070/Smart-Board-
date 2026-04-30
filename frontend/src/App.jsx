@@ -4,6 +4,7 @@ import RegisterPage from './components/auth/RegisterPage.jsx'
 import GoogleCallbackPage from './components/auth/GoogleCallbackPage.jsx'
 import ProtectedRoute from './components/auth/ProtectedRoute.jsx'
 import Dashboard from './components/Dashboard.jsx'
+import LandingPage from './components/LandingPage.jsx'
 import WhiteboardPage from './components/canvas/WhiteboardPage.jsx'
 import SharedBoardPage from './components/canvas/SharedBoardPage.jsx'
 import useAuthStore from './store/authStore.js'
@@ -14,7 +15,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={token ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={token ? <Navigate to="/dashboard" /> : <LoginPage />} />
         <Route path="/register" element={token ? <Navigate to="/dashboard" /> : <RegisterPage />} />
         <Route path="/google-callback" element={token ? <Navigate to="/dashboard" replace /> : <GoogleCallbackPage />} />
@@ -29,7 +30,7 @@ export default function App() {
           </ProtectedRoute>
         } />
         <Route path="/shared/:token" element={<SharedBoardPage />} />
-        <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
+        <Route path="*" element={<Navigate to={token ? '/dashboard' : '/'} replace />} />
       </Routes>
     </BrowserRouter>
   )

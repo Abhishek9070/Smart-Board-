@@ -14,8 +14,8 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
   const isInitialized = useRef(false)
   const isSavingHistory = useRef(false)
   const isRestoringCanvas = useRef(false)
-  const isErasingRef = useRef(false)
-  const erasedDuringStrokeRef = useRef(false)
+  const supportsNativeEraserRef = useRef(typeof fabric.EraserBrush === 'function')
+  const isErasingStrokeRef = useRef(false)
   const isPanningRef = useRef(false)
   const lastPanPointRef = useRef({ x: 0, y: 0 })
 
@@ -83,17 +83,25 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
     if (!canvas || isSavingHistory.current || isRestoringCanvas.current) return
     isSavingHistory.current = true
 
-    const json = JSON.stringify(canvas.toObject())
-    const history = historyRef.current
-    const index = historyIndexRef.current
+    try {
+      const json = JSON.stringify(canvas.toObject())
+      const history = historyRef.current
+      const index = historyIndexRef.current
+      const currentSnapshot = history[index]
 
-    // Aage ka history cut karo
-    historyRef.current = history.slice(0, index + 1)
-    historyRef.current.push(json)
-    historyIndexRef.current = historyRef.current.length - 1
+      // Duplicate snapshot skip karo taaki undo/redo no-op step create na kare.
+      if (currentSnapshot === json) return
 
-    isSavingHistory.current = false
-    onSave?.(json)
+      // Aage ka history cut karo
+      const nextHistory = history.slice(0, index + 1)
+      nextHistory.push(json)
+      historyRef.current = nextHistory
+      historyIndexRef.current = nextHistory.length - 1
+
+      onSave?.(json)
+    } finally {
+      isSavingHistory.current = false
+    }
   }, [onSave])
 
   useEffect(() => {
@@ -131,7 +139,11 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
       if (e.target?._isTemporary) return
       saveHistory()
     })
-    canvas.on('object:modified', saveHistory)
+    canvas.on('object:modified', () => {
+      // Eraser stroke ko ek single history step mein capture karte hain.
+      if (isErasingStrokeRef.current) return
+      saveHistory()
+    })
     canvas.on('object:removed', (e) => {
       if (e.target?._isTemporary) return
       saveHistory()
@@ -203,13 +215,14 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
   useEffect(() => {
     const canvas = fabricRef.current
     if (!canvas) return
+    const currentTool = useCanvasStore.getState().activeTool
 
     if (!canvasData) {
       isRestoringCanvas.current = true
       canvas.clear()
       canvas.backgroundColor = '#ffffff'
       fitCanvasToContainer()
-      applyInteractionMode(activeTool)
+      applyInteractionMode(currentTool)
       canvas.renderAll()
       const emptyJson = JSON.stringify(canvas.toObject())
       historyRef.current = [emptyJson]
@@ -231,7 +244,7 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
           }
         })
         fitCanvasToContainer()
-        applyInteractionMode(activeTool)
+        applyInteractionMode(currentTool)
         canvas.renderAll()
 
         const restoredJson = JSON.stringify(canvas.toObject())
@@ -245,7 +258,7 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
     }
 
     restoreCanvas()
-  }, [activeTool, applyInteractionMode, canvasData, fitCanvasToContainer])
+  }, [applyInteractionMode, canvasData, fitCanvasToContainer])
 
   // Tool update
   useEffect(() => {
@@ -269,11 +282,26 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
       canvas.freeDrawingBrush = brush
       canvas.freeDrawingCursor = createCrosshairCursor()
     } else if (activeTool === 'eraser') {
-      // Erasing is handled in a dedicated effect so background pattern is never painted over.
-      canvas.isDrawingMode = false
-      canvas.freeDrawingBrush = null
+      canvas.isDrawingMode = true
+
+      supportsNativeEraserRef.current = typeof fabric.EraserBrush === 'function'
+
+      if (supportsNativeEraserRef.current) {
+        const brush = new fabric.EraserBrush(canvas)
+        brush.width = eraserWidth
+        canvas.freeDrawingBrush = brush
+      } else {
+        // Fallback when EraserBrush is unavailable: paint with board background color.
+        const brush = new fabric.PencilBrush(canvas)
+        brush.width = eraserWidth
+        brush.color = resolveEraserFallbackColor(canvas)
+        canvas.freeDrawingBrush = brush
+      }
+
+      canvas.freeDrawingCursor = createCircleCursor(eraserWidth)
     } else {
       canvas.isDrawingMode = false
+      canvas.freeDrawingBrush = null
     }
 
     applyInteractionMode(activeTool)
@@ -289,80 +317,25 @@ export default function useCanvasBoard({ canvasData, onSave } = {}) {
   useEffect(() => {
     const canvas = fabricRef.current
     if (!canvas || activeTool !== 'eraser') return
+    if (!supportsNativeEraserRef.current) return
 
-    const eraseAtPointer = (pointer) => {
-      if (!pointer) return false
-
-      const radius = Math.max(6, eraserWidth / 2)
-      const point = new fabric.Point(pointer.x, pointer.y)
-      const targets = []
-
-      canvas.getObjects().forEach((obj) => {
-        if (!obj || obj.erasable === false) return
-
-        const bounds = obj.getBoundingRect()
-        const withinExpandedBounds = (
-          point.x >= bounds.left - radius &&
-          point.x <= bounds.left + bounds.width + radius &&
-          point.y >= bounds.top - radius &&
-          point.y <= bounds.top + bounds.height + radius
-        )
-
-        if (!withinExpandedBounds) return
-        targets.push(obj)
-      })
-
-      if (!targets.length) return false
-
-      targets.forEach((obj) => canvas.remove(obj))
-      canvas.discardActiveObject()
-      canvas.requestRenderAll()
-      return true
+    const handleErasingStart = () => {
+      isErasingStrokeRef.current = true
     }
 
-    const handleMouseDown = (opt) => {
-      if (!opt?.e) return
-      isErasingRef.current = true
-      erasedDuringStrokeRef.current = false
-
-      const pointer = canvas.getScenePoint(opt.e)
-      if (eraseAtPointer(pointer)) {
-        erasedDuringStrokeRef.current = true
-      }
+    const handleErasingEnd = () => {
+      isErasingStrokeRef.current = false
+      saveHistory()
     }
 
-    const handleMouseMove = (opt) => {
-      if (!isErasingRef.current || !opt?.e) return
-      const pointer = canvas.getScenePoint(opt.e)
-      if (eraseAtPointer(pointer)) {
-        erasedDuringStrokeRef.current = true
-      }
-    }
-
-    const stopErasing = () => {
-      if (!isErasingRef.current) return
-      isErasingRef.current = false
-
-      if (erasedDuringStrokeRef.current) {
-        erasedDuringStrokeRef.current = false
-        saveHistory()
-      }
-    }
-
-    canvas.on('mouse:down', handleMouseDown)
-    canvas.on('mouse:move', handleMouseMove)
-    canvas.on('mouse:up', stopErasing)
-    canvas.on('mouse:out', stopErasing)
-
+    canvas.on('erasing:start', handleErasingStart)
+    canvas.on('erasing:end', handleErasingEnd)
     return () => {
-      canvas.off('mouse:down', handleMouseDown)
-      canvas.off('mouse:move', handleMouseMove)
-      canvas.off('mouse:up', stopErasing)
-      canvas.off('mouse:out', stopErasing)
-      isErasingRef.current = false
-      erasedDuringStrokeRef.current = false
+      canvas.off('erasing:start', handleErasingStart)
+      canvas.off('erasing:end', handleErasingEnd)
+      isErasingStrokeRef.current = false
     }
-  }, [activeTool, eraserWidth, saveHistory])
+  }, [activeTool, saveHistory])
 
   useEffect(() => {
     const canvas = fabricRef.current
@@ -679,6 +652,17 @@ function hexToRgba(hex, alpha) {
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
   return `rgba(${r},${g},${b},${alpha})`
+}
+
+function resolveEraserFallbackColor(canvas) {
+  const bg = canvas?.backgroundColor
+  if (typeof bg === 'string' && bg.trim()) {
+    return bg
+  }
+
+  // Pattern background ke case mein exact erase possible nahi hota fallback brush se.
+  // Isliye neutral white use karte hain to avoid black-pencil behavior.
+  return '#ffffff'
 }
 
 function createCircleCursor(size) {

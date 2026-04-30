@@ -87,9 +87,14 @@ export default function Dashboard() {
   }
 
   const handleLogout = async () => {
-    await logoutUser()
-    logout()
-    navigate('/login')
+    try {
+      await logoutUser()
+    } catch {
+      // Local logout should still proceed even if API logout fails.
+    } finally {
+      logout()
+      navigate('/', { replace: true })
+    }
   }
 
   const formatDate = (date) => {
