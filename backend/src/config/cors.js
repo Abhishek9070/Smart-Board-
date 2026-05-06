@@ -9,22 +9,45 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4174',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
+  'https://smart-board-seven.vercel.app',
+  'https://smart-board-git-main-abhishek9070s-projects.vercel.app',
+  'https://smart-board-2wjsvz0v3-abhishek9070s-projects.vercel.app'
 ]
+
+function normalizeOrigin(origin) {
+  return origin.trim().replace(/\/$/, '')
+}
 
 function parseOrigins(rawValue) {
   if (!rawValue) return []
   return rawValue
     .split(',')
-    .map((origin) => origin.trim())
+    .map(normalizeOrigin)
     .filter(Boolean)
 }
 
 const envOrigins = [
   ...parseOrigins(process.env.CLIENT_URL),
   ...parseOrigins(process.env.CLIENT_URLS),
+  ...parseOrigins(process.env.FRONTEND_URL),
+  ...parseOrigins(process.env.FRONTEND_URLS),
 ]
 
-export const allowedOrigins = [...new Set([...envOrigins, ...DEFAULT_ALLOWED_ORIGINS])]
+const vercelOrigin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}` : null
+
+export const frontendUrl = normalizeOrigin(
+  envOrigins[0] ||
+  process.env.CLIENT_URL ||
+  process.env.FRONTEND_URL ||
+  vercelOrigin ||
+  'http://localhost:5173'
+)
+
+export const allowedOrigins = [...new Set([
+  ...envOrigins,
+  ...DEFAULT_ALLOWED_ORIGINS,
+  ...(vercelOrigin ? [vercelOrigin] : []),
+])]
 
 function isAllowedOrigin(origin) {
   if (!origin) return true

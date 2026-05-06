@@ -122,7 +122,8 @@ Set backend env vars in hosting platform:
 - PORT
 - MONGO_URI
 - JWT_SECRET
-- CLIENT_URL (your frontend production URL)
+- CLIENT_URL or FRONTEND_URL (your frontend production URL)
+- CLIENT_URLS or FRONTEND_URLS if you need multiple allowed origins
 - SERVER_URL (your backend production URL)
 - GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (if using Google login)
 
@@ -148,7 +149,7 @@ npm run build
 
 ### 3) Final CORS Check
 
-After frontend is live, set backend CLIENT_URL exactly to frontend domain and redeploy backend.
+After frontend is live, set backend CLIENT_URL or FRONTEND_URL exactly to the deployed frontend domain and redeploy backend.
 
 ## Troubleshooting
 
