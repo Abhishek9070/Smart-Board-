@@ -9,9 +9,7 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4174',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:5174',
-  'https://smart-board-seven.vercel.app',
-  'https://smart-board-git-main-abhishek9070s-projects.vercel.app',
-  'https://smart-board-2wjsvz0v3-abhishek9070s-projects.vercel.app'
+  'https://smart-board-mishra.vercel.app'
 ]
 
 function normalizeOrigin(origin) {
