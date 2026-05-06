@@ -19,7 +19,7 @@ export const savePage = async (req, res) => {
     const page = await Page.findOneAndUpdate(
       { board: req.params.boardId, pageNumber: req.params.pageNumber },
       { canvasData: serializedCanvasData, background },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     )
 
     await Board.findByIdAndUpdate(req.params.boardId, { updatedAt: new Date() })

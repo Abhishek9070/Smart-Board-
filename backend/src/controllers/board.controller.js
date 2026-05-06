@@ -61,7 +61,7 @@ export const updateBoard = async (req, res) => {
         title: nextTitle,
         updatedAt: new Date()
       },
-      { new: true }
+      { returnDocument: 'after' }
     )
 
     if (!board) return res.status(404).json({ message: 'Board not found' })
