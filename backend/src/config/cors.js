@@ -3,7 +3,8 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "https://smart-board-mishra.vercel.app",
-  "https://smart-board-mishra-git-main-abhishek9070s-projects.vercel.app"
+  "https://smart-board-mishra-git-main-abhishek9070s-projects.vercel.app",
+  "https://smart-board-mishra-fqfbe1um1-abhishek9070s-projects.vercel.app"
 ];
 
 // Normalize origin (remove trailing slash)
