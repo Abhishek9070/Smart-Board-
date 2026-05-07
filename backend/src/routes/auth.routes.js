@@ -3,7 +3,7 @@ import passport from 'passport'
 import { register, login, logout, getMe } from '../controllers/auth.controller.js'
 import protect from '../middleware/auth.middleware.js'
 import generateToken from '../utils/generateToken.js'
-import { frontendUrl } from '../config/cors.js'
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const router = express.Router()
 

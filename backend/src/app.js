@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import passport from './config/passport.js'
-import { expressCorsOptions } from './config/cors.js'
+import {corsOptions } from './config/cors.js'
 import authRoutes from './routes/auth.routes.js'
 import boardRoutes from './routes/board.routes.js'
 import pageRoutes from './routes/page.routes.js'
@@ -11,7 +11,8 @@ import shareRoutes from './routes/share.routes.js'
 const app = express()
 
 
-app.use(cors(expressCorsOptions))
+app.use(cors(corsOptions))
+app.options(/.*/, cors(corsOptions))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(cookieParser())
