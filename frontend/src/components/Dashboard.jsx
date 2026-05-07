@@ -90,7 +90,7 @@ export default function Dashboard() {
     try {
       await logoutUser()
     } catch {
-      // Local logout should still proceed even if API logout fails.
+     
     } finally {
       logout()
       navigate('/', { replace: true })

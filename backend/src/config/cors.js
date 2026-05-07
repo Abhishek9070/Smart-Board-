@@ -1,72 +1,60 @@
 const DEFAULT_ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'http://localhost:4173',
-  'http://localhost:4174',
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:4173',
-  'http://127.0.0.1:4174',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:5174',
-  'https://smart-board-mishra.vercel.app',
-  'https://smart-board-mishra-git-main-abhishek9070s-projects.vercel.app'
-]
+  "http://localhost:3000",
+  "http://localhost:4173",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:4173",
+  "http://127.0.0.1:5173",
+  "https://smart-board-mishra.vercel.app",
+  "https://smart-board-mishra-git-main-abhishek9070s-projects.vercel.app"
+];
+
 
 function normalizeOrigin(origin) {
-  return origin.trim().replace(/\/$/, '')
+  return origin?.trim().replace(/\/$/, "");
 }
 
-function parseOrigins(rawValue) {
-  if (!rawValue) return []
-  return rawValue
-    .split(',')
-    .map(normalizeOrigin)
-    .filter(Boolean)
+
+function parseOrigins(value) {
+  if (!value) return [];
+  return value.split(",").map(normalizeOrigin).filter(Boolean);
 }
+
 
 const envOrigins = [
   ...parseOrigins(process.env.CLIENT_URL),
   ...parseOrigins(process.env.CLIENT_URLS),
   ...parseOrigins(process.env.FRONTEND_URL),
   ...parseOrigins(process.env.FRONTEND_URLS),
-]
+];
 
-const vercelOrigin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, '')}` : null
+// Handle Vercel preview URL automatically
+const vercelOrigin = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL.replace(/^https?:\/\//, "")}`
+  : null;
 
-export const frontendUrl = normalizeOrigin(
-  envOrigins[0] ||
-  process.env.CLIENT_URL ||
-  process.env.FRONTEND_URL ||
-  vercelOrigin ||
-  'http://localhost:5173'
-)
+export const allowedOrigins = [
+  ...new Set([
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...envOrigins,
+    ...(vercelOrigin ? [vercelOrigin] : []),
+  ]),
+];
 
-export const allowedOrigins = [...new Set([
-  ...envOrigins,
-  ...DEFAULT_ALLOWED_ORIGINS,
-  ...(vercelOrigin ? [vercelOrigin] : []),
-])]
+export const corsOptions = {
+  origin: function (origin, callback) {
+    const normalized = normalizeOrigin(origin);
 
-function isAllowedOrigin(origin) {
-  if (!origin) return true
-  return allowedOrigins.includes(origin)
-}
+    if (!origin) return callback(null, true);
 
-export const expressCorsOptions = {
-  origin(origin, callback) {
-    if (isAllowedOrigin(origin)) {
-      callback(null, true)
-      return
+    if (allowedOrigins.includes(normalized)) {
+      return callback(null, true);
     }
 
-    callback(new Error(`CORS blocked for origin: ${origin}`))
+    console.log("CORS Blocked:", origin);
+    return callback(null, false); 
   },
-  credentials: true,
-}
 
-export const socketCorsOptions = {
-  origin: allowedOrigins,
-  methods: ['GET', 'POST'],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
-}
+};
